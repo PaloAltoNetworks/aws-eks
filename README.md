@@ -13,6 +13,6 @@ The deployment guide can be found
 
 ## History  
 
-Version 1.0.Beta - Aug 2019
+Version 1.0 - Aug 2019
 
 The initial release of version 1.0 is provided as a community supported, i.e. best effort, release. You can consider this as an open beta to introduce new features and collect feedback for improving the generally available release that will be officially supported.
