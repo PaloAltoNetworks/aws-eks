@@ -1,6 +1,3 @@
-****Proceed with Caution****    
-These repositories contain default password information and should be used for Proof of Concept purposes only. If you wish to use this template in a production environment it is your responsibility to change the default passwords. 
-
 Palo Alto Networks now provides templates to help you deploy an Elastic Kubernetes Service (EKS) Cluster in an AWS VPC. The Panorama plugin for Amazon EKS secures inbound traffic to Kubernetes clusters, and provides outbound monitoring for traffic exiting the cluster. The solution works in conjunction with [AWS AutoScale Groups](https://docs.aws.amazon.com/autoscaling/ec2/userguide/AutoScalingGroup.html) which allows you to deploy an auto-scaling tier of VM-Series firewalls using several native AWS services. The template allows you to deploy the EKS cluster in one of the spoke VPC's in the auto scaling solution.
 
 ## Requirements   
