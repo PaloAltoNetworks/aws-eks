@@ -1,0 +1,411 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon EKS - Node Group'
+
+Parameters:
+  ClusterName:
+    Description: Name of the newly created cluster.
+    Type: String
+    MinLength: 6
+    MaxLength: 64
+    Default: panwCluster
+
+  VPCID:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID to deployed cluster into.
+
+  InternetGatewayID:
+    Type: String
+    Description: "(NO OUTBOUND PROTECTION) InternetGateway ID of VPC."
+    Default : ""
+
+  NumberOfSubnets:
+    Description : 'Total number of cluster subnets which will be deployed (Min 2 and Max 4 depending on az availability)'
+    Type : Number
+    MinValue : 2
+    Default : 2
+    MaxValue : 4
+
+  ClusterSubnetAZs:
+    Type: List<AWS::EC2::AvailabilityZone::Name>
+    Description: 'Enter the list of Availability Zones (Select only number of Subnets above)'
+
+  PrivateSubnetIpBlocks:
+    Description: 'Cluster subnet comma-delimited list of CIDR blocks .Ex: 192.168.0.0/24, 192.168.10.0/24, 192.168.20.0/24'
+    Type: CommaDelimitedList
+
+
+
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups: 
+      - 
+        Label: 
+          default: "Cluster Configuration"
+        Parameters: 
+          - ClusterName
+          - VPCID
+          - NumberOfSubnets
+          - ClusterSubnetAZs
+          - PrivateSubnetIpBlocks
+          - InternetGatewayID
+    ParameterLabels: 
+      ClusterName:
+        default: "Cluster Name"
+      VPCID: 
+        default: "VPC ID"
+      NumberOfSubnets: 
+        default: "Number of Cluster Subnets"
+      ClusterSubnetAZs: 
+        default: "AZs for Cluster Subnets"
+      PrivateSubnetIpBlocks: 
+        default: "Private Subnet Ip Blocks"
+      InternetGatewayID: 
+        default: "Internet Gateway ID of VPC"
+
+
+
+
+Conditions:
+  CreateSubnet2: 
+    Fn::Equals: 
+    - Ref: NumberOfSubnets 
+    - '2'
+  CreateSubnet3: 
+    Fn::Equals: 
+    - Ref: NumberOfSubnets 
+    - '3'
+  CreateSubnet4: 
+    Fn::Equals: 
+    - Ref: NumberOfSubnets 
+    - '4'
+  CreateSubnet3more: 
+    Fn::Or: 
+    - Fn::Equals:
+      - Ref: NumberOfSubnets 
+      - '3' 
+    - Fn::Equals: 
+      - Ref: NumberOfSubnets 
+      - '4'
+
+
+Resources:
+  SubnetRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: 
+        Ref: VPCID
+      Tags:
+      - Key: Application 
+        Value: 
+          Ref: AWS::StackId
+      - Key: Name
+        Value:
+          Fn::Join: [
+            "-",
+            [
+              { Ref: "AWS::StackName" },
+              "RouteTable"
+            ]
+          ]
+
+  IGWRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: 
+        Ref: SubnetRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: 
+        Ref: InternetGatewayID
+    DependsOn: [SubnetRouteTable]
+
+  PrivateSubnetAz1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: 
+        Fn::Select:  
+        - '0' 
+        - Ref: ClusterSubnetAZs
+      MapPublicIpOnLaunch: true
+      VpcId: 
+        Ref: VPCID
+      CidrBlock:
+        Fn::Select:
+        - '0'
+        - Ref: PrivateSubnetIpBlocks
+      Tags:
+      - Key: Network
+        Value: Private
+      - Key: Name
+        Value: PrivateSubnetAz1
+
+  PrivateSubnetAz2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Ref: ClusterSubnetAZs
+      MapPublicIpOnLaunch: true
+      VpcId:
+        Ref: VPCID
+      CidrBlock:
+        Fn::Select:
+        - '1'
+        - Ref: PrivateSubnetIpBlocks
+      Tags:
+      - Key: Network
+        Value: Private
+      - Key: Name
+        Value: PrivateSubnetAz2
+
+  PrivateSubnetAz3:
+    Type: AWS::EC2::Subnet
+    Condition: CreateSubnet3more
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '2'
+        - Ref: ClusterSubnetAZs
+      MapPublicIpOnLaunch: true
+      VpcId:
+        Ref: VPCID
+      CidrBlock:
+        Fn::Select:
+        - '2'
+        - Ref: PrivateSubnetIpBlocks
+      Tags:
+      - Key: Network
+        Value: Private
+      - Key: Name
+        Value: PrivateSubnetAz3
+
+  PrivateSubnetAz4:
+    Type: AWS::EC2::Subnet
+    Condition: CreateSubnet4
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '3'
+        - Ref: ClusterSubnetAZs
+      MapPublicIpOnLaunch: true
+      VpcId:
+        Ref: VPCID
+      CidrBlock:
+        Fn::Select:
+        - '3'
+        - Ref: PrivateSubnetIpBlocks
+      Tags:
+      - Key: Network
+        Value: Private
+      - Key: Name
+        Value: PrivateSubnetAz4
+
+  SubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PrivateSubnetAz1
+      RouteTableId: 
+        Ref: SubnetRouteTable
+    DependsOn: [ SubnetRouteTable, PrivateSubnetAz1 ]
+
+  SubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PrivateSubnetAz2
+      RouteTableId: 
+        Ref: SubnetRouteTable
+    DependsOn: [ SubnetRouteTable, PrivateSubnetAz2 ]
+
+  SubnetRouteTableAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateSubnet3more
+    Properties:
+      SubnetId:
+        Ref: PrivateSubnetAz3
+      RouteTableId: 
+        Ref: SubnetRouteTable
+    DependsOn: [ SubnetRouteTable, PrivateSubnetAz3 ]
+
+  SubnetRouteTableAssociation4:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateSubnet4
+    Properties:
+      SubnetId:
+        Ref: PrivateSubnetAz4
+      RouteTableId: 
+        Ref: SubnetRouteTable
+    DependsOn: [ SubnetRouteTable, PrivateSubnetAz4 ]
+
+  ClusterRole:
+    Description: Allows EKS to manage clusters on your behalf.
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+            Effect: Allow
+            Principal:
+              Service:
+                - eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+
+  ClusterControlPlaneSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Cluster communication with worker nodes
+      VpcId: 
+        Ref: VPCID
+
+  ClusterAZ2:
+    Type: "AWS::EKS::Cluster"
+    Condition: CreateSubnet2
+    Properties:
+      Name: !Ref ClusterName
+      Version: "1.11"
+      RoleArn: !GetAtt ClusterRole.Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Ref ClusterControlPlaneSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnetAz1
+          - !Ref PrivateSubnetAz2
+  
+  ClusterAZ3:
+    Type: "AWS::EKS::Cluster"
+    Condition: CreateSubnet3
+    Properties:
+      Name: !Ref ClusterName
+      Version: "1.11"
+      RoleArn: !GetAtt ClusterRole.Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Ref ClusterControlPlaneSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnetAz1
+          - !Ref PrivateSubnetAz2
+          - !Ref PrivateSubnetAz3
+
+  ClusterAZ4:
+    Type: "AWS::EKS::Cluster"
+    Condition: CreateSubnet4
+    Properties:
+      Name: !Ref ClusterName
+      Version: "1.11"
+      RoleArn: !GetAtt ClusterRole.Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Ref ClusterControlPlaneSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnetAz1
+          - !Ref PrivateSubnetAz2
+          - !Ref PrivateSubnetAz3
+          - !Ref PrivateSubnetAz4
+
+Outputs:
+  ClusterNameAZ2:
+    Condition: CreateSubnet2
+    Value: !Ref ClusterAZ2
+    Description: Cluster Name
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-ClusterName"
+
+  ClusterArnAZ2:
+    Condition: CreateSubnet2
+    Value: !GetAtt ClusterAZ2.Arn
+    Description: Cluster Arn
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-ClusterArn"
+
+  ClusterEndpointAZ2:
+    Condition: CreateSubnet2
+    Value: !GetAtt ClusterAZ2.Endpoint
+    Description: Cluster Endpoint
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-ClusterEndpoint"
+
+  ClusterNameAZ3:
+    Condition: CreateSubnet3
+    Value: !Ref ClusterAZ3
+    Description: Cluster Name
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-ClusterName"
+
+  ClusterArnAZ3:
+    Condition: CreateSubnet3
+    Value: !GetAtt ClusterAZ3.Arn
+    Description: Cluster Arn
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-ClusterArn"
+
+  ClusterEndpointAZ3:
+    Condition: CreateSubnet3
+    Value: !GetAtt ClusterAZ3.Endpoint
+    Description: Cluster Endpoint
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-ClusterEndpoint"
+
+  ClusterNameAZ4:
+    Condition: CreateSubnet4
+    Value: !Ref ClusterAZ4
+    Description: Cluster Name
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-ClusterName"
+
+  ClusterArnAZ4:
+    Condition: CreateSubnet4
+    Value: !GetAtt ClusterAZ4.Arn
+    Description: Cluster Arn
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-ClusterArn"
+
+  ClusterEndpointAZ4:
+    Condition: CreateSubnet4
+    Value: !GetAtt ClusterAZ4.Endpoint
+    Description: Cluster Endpoint
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-ClusterEndpoint"
+
+  ClusterControlPlaneSecurityGroup:
+    Value: !Ref ClusterControlPlaneSecurityGroup
+    Description: ClusterControlPlaneSecurityGroup
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-ClusterControlPlaneSecurityGroup"
+
+  PrivateSubnetAz1ID:
+    Description: Private subnet ID in Availability Zone 1
+    Value:
+      Ref: PrivateSubnetAz1
+
+  PrivateSubnetAz2ID:
+    Description: Private subnet ID in Availability Zone 2
+    Value:
+      Ref: PrivateSubnetAz2
+
+  PrivateSubnetAz3ID:
+    Condition: CreateSubnet3more
+    Description: Private subnet ID in Availability Zone 3
+    Value:
+      Ref: PrivateSubnetAz3
+
+  PrivateSubnetAz4ID:
+    Condition: CreateSubnet4
+    Description: Private subnet ID in Availability Zone 4
+    Value:
+      Ref: PrivateSubnetAz4
+
