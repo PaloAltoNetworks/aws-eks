@@ -2,9 +2,8 @@ Palo Alto Networks now provides templates to help you deploy an Elastic Kubernet
 
 ## Requirements   
 - The minimum Panorama software version is 9.0.3.
-- You must deploy your VM-Series firewall (or firewall set) in the same VPC as your EKS cluster. You can
-create up to 16 clusters in the same VPC and secure them with the same firewall or firewall set.
-- VM-Series firewalls PAN-OS version 8.1 and later, or version 9.0.3 and later
+- EKS Plugin on Panorama—version 2.0.0.
+- VM-Series firewalls PAN-OS version 8.1 and later, or version 9.0.3 and later.
 
 ![alt text](https://github.com/PaloAltoNetworks/aws-eks/blob/master/aws-eks.PNG "Logo Title Text 1")
 
