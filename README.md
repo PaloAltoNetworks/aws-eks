@@ -13,7 +13,7 @@ The deployment guide can be found
 
 ## History  
 
-Version 1.0 - Sept 2019
+Version 1.0 - Sept 2019 Beta
 
 ## Support Policy  
 ***Community-Supported***      
