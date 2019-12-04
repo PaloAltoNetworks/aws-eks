@@ -1,4 +1,6 @@
-Palo Alto Networks now provides templates to help you deploy an Elastic Kubernetes Service (EKS) Cluster in an AWS VPC. The Panorama plugin for Amazon EKS secures inbound traffic to Kubernetes clusters, and provides outbound monitoring for traffic exiting the cluster. The solution works in conjunction with [AWS AutoScale Groups](https://docs.aws.amazon.com/autoscaling/ec2/userguide/AutoScalingGroup.html) which allows you to deploy an auto-scaling tier of VM-Series firewalls using several native AWS services. The template allows you to deploy the EKS cluster in one of the spoke VPC's in the auto scaling group. Auto Scaling is not supported at this time. 
+Palo Alto Networks now provides templates to help you deploy an Elastic Kubernetes Service (EKS) Cluster in an AWS VPC. The Panorama plugin for Amazon EKS secures inbound traffic to Kubernetes clusters, and provides outbound monitoring for traffic exiting the cluster. The solution works in conjunction with [AWS AutoScale Groups](https://docs.aws.amazon.com/autoscaling/ec2/userguide/AutoScalingGroup.html) which allows you to deploy an auto-scaling tier of VM-Series firewalls using several native AWS services. The template allows you to deploy the EKS cluster in one of the spoke VPC's in the auto scaling group. 
+
+### Auto Scaling is not supported at this time. 
 
 ## Requirements   
 - The minimum Panorama software version is 9.0.3.
