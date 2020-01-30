@@ -21,7 +21,7 @@ Parameters:
     MaxLength: '63'
   PanFwAmiId:
     Type: AWS::EC2::Image::Id
-    Description: 'Link to Ami Id lookup table: https://www.paloaltonetworks.com/documentation/global/compatibility-matrix/vm-series-firewalls/aws-cft-amazon-machine-images-ami-list'
+    Description: 'Link to Ami Id lookup table: https://docs.paloaltonetworks.com/compatibility-matrix/vm-series-firewalls/aws-cft-amazon-machine-images-ami-list.html'
   ELBName:
     Type: String
     Description: Enter the name of the external Application Load Balancer
@@ -181,7 +181,7 @@ Metadata:
       LambdaS3Bucket:
         default: 'S3 Bucket Name for Lambda Code:'
       ELBName:
-        default: 'Name of External Application Load Balancer:'
+        default: 'Name of External Load Balancer:'
       VpcAzs:
         default: 'Select  AZs:'
       AZSubnetIDUntrust:
@@ -873,37 +873,37 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - TrustRouteTableAz3
-  TrustRouteNAT1:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId:
-        Ref: TrustRouteTableAz1
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId:
-        Ref: NAT1
-    DependsOn:
-    - NAT1
-  TrustRouteNAT2:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId:
-        Ref: TrustRouteTableAz2
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId:
-        Ref: NAT2
-    DependsOn:
-    - NAT2
-  TrustRouteNAT3:
-    Type: AWS::EC2::Route
-    Condition: CreateSubnet3
-    Properties:
-      RouteTableId:
-        Ref: TrustRouteTableAz3
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId:
-        Ref: NAT3
-    DependsOn:
-    - NAT3
+  #TrustRouteNAT1:
+  #  Type: AWS::EC2::Route
+  #  Properties:
+  #    RouteTableId:
+  #      Ref: TrustRouteTableAz1
+  #    DestinationCidrBlock: 0.0.0.0/0
+  #    NatGatewayId:
+  #      Ref: NAT1
+  #  DependsOn:
+  #  - NAT1
+  #TrustRouteNAT2:
+  #  Type: AWS::EC2::Route
+  #  Properties:
+  #    RouteTableId:
+  #      Ref: TrustRouteTableAz2
+  #    DestinationCidrBlock: 0.0.0.0/0
+  #    NatGatewayId:
+  #      Ref: NAT2
+  #  DependsOn:
+  #  - NAT2
+  #TrustRouteNAT3:
+  #  Type: AWS::EC2::Route
+  #  Condition: CreateSubnet3
+  #  Properties:
+  #    RouteTableId:
+  #      Ref: TrustRouteTableAz3
+  #   DestinationCidrBlock: 0.0.0.0/0
+  #    NatGatewayId:
+  #      Ref: NAT3
+  #  DependsOn:
+  #  - NAT3
   TRUSTSubnetRouteTableAssociation1:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -953,8 +953,8 @@ Resources:
         CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
       - IpProtocol: tcp
-        FromPort: '80'
-        ToPort: '2000'
+        FromPort: '1'
+        ToPort: '65500'
         CidrIp: 0.0.0.0/0
   PublicLoadBanlancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener

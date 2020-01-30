@@ -9,12 +9,6 @@ Parameters:
     MinLength: '6'
     MaxLength: '24'
     Default: panwVPC
-  VPCCIDR:
-    Type: String
-    Description: Enter the VPC CIDR that you want to use
-    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
-    ConstraintDescription: must be a valid CIDR range of the form x.x.x.x/x.
-    Default: 192.168.0.0/16
   BootstrapS3Bucket:
     Type: String
     Description: Enter the name of the Bootstrap S3 bucket for the VM-Series firewall
@@ -22,7 +16,7 @@ Parameters:
     MaxLength: '63'
   PanFwAmiId:
     Type: AWS::EC2::Image::Id
-    Description: 'Link to Ami Id lookup table: https://docs.paloaltonetworks.com/compatibility-matrix/vm-series-firewalls/aws-cft-amazon-machine-images-ami-list.html'
+    Description: 'Link to Ami Id lookup table: https://www.paloaltonetworks.com/documentation/global/compatibility-matrix/vm-series-firewalls/aws-cft-amazon-machine-images-ami-list'
   ELBName:
     Type: String
     Description: Enter the name of the external Application Load Balancer
@@ -50,26 +44,6 @@ Parameters:
   VpcAzs:
     Type: List<AWS::EC2::AvailabilityZone::Name>
     Description: Enter the list of Availability Zones (Based on Number of AZs above)
-  MgmtSubnetIpBlocks:
-    Description: 'Management subnet comma-delimited list of CIDR blocks .Ex: 192.168.0.0/24,
-      192.168.10.0/24, 192.168.20.0/24'
-    Type: CommaDelimitedList
-    Default: 192.168.0.0/24, 192.168.10.0/24, 192.168.20.0/24
-  UntrustSubnetIpBlocks:
-    Description: Untrust subnet comma-delimited list of CIDR blocks. Ex:192.168.1.0/24,
-      192.168.11.0/24, 192.168.21.0/24
-    Type: CommaDelimitedList
-    Default: 192.168.1.0/24, 192.168.11.0/24, 192.168.21.0/24
-  TrustSubnetIpBlocks:
-    Description: 'Trust subnet comma-delimited list of CIDR blocks. Ex: 192.168.2.0/24,
-      192.168.12.0/24, 192.168.22.0/24'
-    Type: CommaDelimitedList
-    Default: 192.168.2.0/24, 192.168.12.0/24, 192.168.22.0/24
-  NATGWSubnetIpBlocks:
-    Description: AWS NAT Gateway Comma-delimited list of CIDR blocks. Ex:192.168.100.0/24,
-      192.168.101.0/24, 192.168.102.0/24
-    Type: CommaDelimitedList
-    Default: 192.168.100.0/24, 192.168.101.0/24, 192.168.102.0/24
   NumberOfFWs:
     Description: Total Number of firewalls in this deployment (Min 2 and Max 6 depending)
     Type: Number
@@ -154,13 +128,6 @@ Metadata:
       - VPCName
       - NumberOfAZs
       - VpcAzs
-      - VPCCIDR
-      - NumberOfFWs
-      - MgmtSubnetIpBlocks
-      - UntrustSubnetIpBlocks
-      - TrustSubnetIpBlocks
-      - NATGWSubnetIpBlocks
-      - ELBName
       - ELBType
     - Label:
         default: VM-Series firewall Instance configuration
@@ -168,12 +135,16 @@ Metadata:
       - PanFwAmiId
       - KeyName
       - SSHLocation
-      
+      - NumberOfFWs
     - Label:
         default: S3 Bucket details
       Parameters:
       - BootstrapS3Bucket
       - LambdaS3Bucket
+    - Label:
+        default: Cross-account configuration
+      Parameters:
+      - SubscriberAWSAccountNumber
     ParameterLabels:
       PanFwAmiId:
         default: 'AMIId of PANFW Image:'
@@ -186,7 +157,7 @@ Metadata:
       LambdaS3Bucket:
         default: 'S3 Bucket Name for Lambda Code:'
       ELBName:
-        default: 'Name of External Load Balancer:'
+        default: 'Name of External Application Load Balancer:'
       VpcAzs:
         default: 'Select  AZs:'
       AZSubnetIDUntrust:
@@ -198,11 +169,10 @@ Resources:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock:
-        Ref: VPCCIDR
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- VpcCidrBlock
-        #- CidrBlock
+        Fn::FindInMap:
+        - CidrBlockMap
+        - VpcCidrBlock
+        - CidrBlock
       EnableDnsHostnames: true
       EnableDnsSupport: true
       Tags:
@@ -225,13 +195,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '0'
-        - Ref: NATGWSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- NatGwCidrBlock
-        #- CidrBlockAz1
+        Fn::FindInMap:
+        - CidrBlockMap
+        - NatGwCidrBlock
+        - CidrBlockAz1
       Tags:
       - Key: Application
         Value:
@@ -257,13 +224,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '1'
-        - Ref: NATGWSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- NatGwCidrBlock
-        #- CidrBlockAz2
+        Fn::FindInMap:
+        - CidrBlockMap
+        - NatGwCidrBlock
+        - CidrBlockAz2
       Tags:
       - Key: Application
         Value:
@@ -290,13 +254,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '2'
-        - Ref: NATGWSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- NatGwCidrBlock
-        #- CidrBlockAz3
+        Fn::FindInMap:
+        - CidrBlockMap
+        - NatGwCidrBlock
+        - CidrBlockAz3
       Tags:
       - Key: Application
         Value:
@@ -390,13 +351,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '0'
-        - Ref: MgmtSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- MgmtCidrBlock
-        #- CidrBlockAz1
+        Fn::FindInMap:
+        - CidrBlockMap
+        - MgmtCidrBlock
+        - CidrBlockAz1
       Tags:
       - Key: Application
         Value:
@@ -422,13 +380,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '1'
-        - Ref: MgmtSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- MgmtCidrBlock
-        #- CidrBlockAz2
+        Fn::FindInMap:
+        - CidrBlockMap
+        - MgmtCidrBlock
+        - CidrBlockAz2
       Tags:
       - Key: Application
         Value:
@@ -455,13 +410,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '2'
-        - Ref: MgmtSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- MgmtCidrBlock
-        #- CidrBlockAz3
+        Fn::FindInMap:
+        - CidrBlockMap
+        - MgmtCidrBlock
+        - CidrBlockAz3
       Tags:
       - Key: Application
         Value:
@@ -739,13 +691,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '0'
-        - Ref: UntrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- UntrustCidrBlock
-        #- CidrBlockAz1
+        Fn::FindInMap:
+        - CidrBlockMap
+        - UntrustCidrBlock
+        - CidrBlockAz1
       Tags:
       - Key: Application
         Value:
@@ -770,13 +719,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '1'
-        - Ref: UntrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- UntrustCidrBlock
-        #- CidrBlockAz2
+        Fn::FindInMap:
+        - CidrBlockMap
+        - UntrustCidrBlock
+        - CidrBlockAz2
       Tags:
       - Key: Application
         Value:
@@ -802,13 +748,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '2'
-        - Ref: UntrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- UntrustCidrBlock
-        #- CidrBlockAz3
+        Fn::FindInMap:
+        - CidrBlockMap
+        - UntrustCidrBlock
+        - CidrBlockAz3
       Tags:
       - Key: Application
         Value:
@@ -892,13 +835,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '0'
-        - Ref: TrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- TrustCidrBlock
-        #- CidrBlockAz1
+        Fn::FindInMap:
+        - CidrBlockMap
+        - TrustCidrBlock
+        - CidrBlockAz1
       Tags:
       - Key: Application
         Value:
@@ -924,13 +864,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '1'
-        - Ref: TrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- TrustCidrBlock
-        #- CidrBlockAz2
+        Fn::FindInMap:
+        - CidrBlockMap
+        - TrustCidrBlock
+        - CidrBlockAz2
       Tags:
       - Key: Application
         Value:
@@ -957,13 +894,10 @@ Resources:
       VpcId:
         Ref: VPC
       CidrBlock:
-        Fn::Select:
-        - '2'
-        - Ref: TrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- TrustCidrBlock
-        #- CidrBlockAz3
+        Fn::FindInMap:
+        - CidrBlockMap
+        - TrustCidrBlock
+        - CidrBlockAz3
       Tags:
       - Key: Application
         Value:
@@ -1037,37 +971,37 @@ Resources:
             - TrustRouteTableAz3
     DependsOn:
     - VPC
-  #TrustRouteNAT1:
-  #  Type: AWS::EC2::Route
-  #  Properties:
-  #    RouteTableId:
-  #      Ref: TrustRouteTableAz1
-  #    DestinationCidrBlock: 0.0.0.0/0
-  #    NatGatewayId:
-  #      Ref: NAT1
-  #  DependsOn:
-  #  - NAT1
-  #TrustRouteNAT2:
-  #  Type: AWS::EC2::Route
-  #  Properties:
-  #    RouteTableId:
-  #      Ref: TrustRouteTableAz2
-  #    DestinationCidrBlock: 0.0.0.0/0
-  #    NatGatewayId:
-  #      Ref: NAT2
-  #  DependsOn:
-  #  - NAT2
-  #TrustRouteNAT3:
-  #  Type: AWS::EC2::Route
-  #  Condition: CreateSubnet3
-  #  Properties:
-  #    RouteTableId:
-  #      Ref: TrustRouteTableAz3
-  #    DestinationCidrBlock: 0.0.0.0/0
-  #    NatGatewayId:
-  #      Ref: NAT3
-  #  DependsOn:
-  #  - NAT3
+  TrustRouteNAT1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: TrustRouteTableAz1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NAT1
+    DependsOn:
+    - NAT1
+  TrustRouteNAT2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: TrustRouteTableAz2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NAT2
+    DependsOn:
+    - NAT2
+  TrustRouteNAT3:
+    Type: AWS::EC2::Route
+    Condition: CreateSubnet3
+    Properties:
+      RouteTableId:
+        Ref: TrustRouteTableAz3
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NAT3
+    DependsOn:
+    - NAT3
   TRUSTSubnetRouteTableAssociation1:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -1117,8 +1051,8 @@ Resources:
         CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
       - IpProtocol: tcp
-        FromPort: '1'
-        ToPort: '65500'
+        FromPort: '80'
+        ToPort: '2000'
         CidrIp: 0.0.0.0/0
     DependsOn:
     - VPC

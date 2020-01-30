@@ -3,18 +3,17 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Creates VPC, Subnets, Route Tables, SG, External Application ExLB, ASG
   for PANW firewall and Lambda Infrastructure for the VM-Series firewall
 Parameters:
-  VPCName:
-    Description: Name of the newly created VPC
-    Type: String
-    MinLength: '6'
-    MaxLength: '24'
-    Default: panwVPC
+  VPCID:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID to be deployed into
   VPCCIDR:
     Type: String
     Description: Enter the VPC CIDR that you want to use
     AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
     ConstraintDescription: must be a valid CIDR range of the form x.x.x.x/x.
-    Default: 192.168.0.0/16
+  InternetGatewayID:
+    Type: String
+    Description: InternetGateway ID in the VPC to be deployed into
   BootstrapS3Bucket:
     Type: String
     Description: Enter the name of the Bootstrap S3 bucket for the VM-Series firewall
@@ -22,7 +21,7 @@ Parameters:
     MaxLength: '63'
   PanFwAmiId:
     Type: AWS::EC2::Image::Id
-    Description: 'Link to Ami Id lookup table: https://docs.paloaltonetworks.com/compatibility-matrix/vm-series-firewalls/aws-cft-amazon-machine-images-ami-list.html'
+    Description: 'Link to Ami Id lookup table: https://www.paloaltonetworks.com/documentation/global/compatibility-matrix/vm-series-firewalls/aws-cft-amazon-machine-images-ami-list'
   ELBName:
     Type: String
     Description: Enter the name of the external Application Load Balancer
@@ -54,22 +53,18 @@ Parameters:
     Description: 'Management subnet comma-delimited list of CIDR blocks .Ex: 192.168.0.0/24,
       192.168.10.0/24, 192.168.20.0/24'
     Type: CommaDelimitedList
-    Default: 192.168.0.0/24, 192.168.10.0/24, 192.168.20.0/24
   UntrustSubnetIpBlocks:
     Description: Untrust subnet comma-delimited list of CIDR blocks. Ex:192.168.1.0/24,
       192.168.11.0/24, 192.168.21.0/24
     Type: CommaDelimitedList
-    Default: 192.168.1.0/24, 192.168.11.0/24, 192.168.21.0/24
   TrustSubnetIpBlocks:
     Description: 'Trust subnet comma-delimited list of CIDR blocks. Ex: 192.168.2.0/24,
       192.168.12.0/24, 192.168.22.0/24'
     Type: CommaDelimitedList
-    Default: 192.168.2.0/24, 192.168.12.0/24, 192.168.22.0/24
   NATGWSubnetIpBlocks:
     Description: AWS NAT Gateway Comma-delimited list of CIDR blocks. Ex:192.168.100.0/24,
       192.168.101.0/24, 192.168.102.0/24
     Type: CommaDelimitedList
-    Default: 192.168.100.0/24, 192.168.101.0/24, 192.168.102.0/24
   NumberOfFWs:
     Description: Total Number of firewalls in this deployment (Min 2 and Max 6 depending)
     Type: Number
@@ -94,25 +89,6 @@ Mappings:
   KeyMap:
     Key:
       Key: panw-aws.zip
-  CidrBlockMap:
-    VpcCidrBlock:
-      CidrBlock: 192.168.0.0/16
-    MgmtCidrBlock:
-      CidrBlockAz1: 192.168.0.0/24
-      CidrBlockAz2: 192.168.10.0/24
-      CidrBlockAz3: 192.168.20.0/24
-    UntrustCidrBlock:
-      CidrBlockAz1: 192.168.1.0/24
-      CidrBlockAz2: 192.168.11.0/24
-      CidrBlockAz3: 192.168.21.0/24
-    TrustCidrBlock:
-      CidrBlockAz1: 192.168.2.0/24
-      CidrBlockAz2: 192.168.12.0/24
-      CidrBlockAz3: 192.168.22.0/24
-    NatGwCidrBlock:
-      CidrBlockAz1: 192.168.100.0/24
-      CidrBlockAz2: 192.168.101.0/24
-      CidrBlockAz3: 192.168.102.0/24
   FWInstanceTypeMap:
     TypeM4:
       M4xlarge: m4.xlarge
@@ -151,16 +127,17 @@ Metadata:
     - Label:
         default: VPC Configuration
       Parameters:
-      - VPCName
-      - NumberOfAZs
-      - VpcAzs
+      - VPCID
       - VPCCIDR
-      - NumberOfFWs
+      - InternetGatewayID
       - MgmtSubnetIpBlocks
       - UntrustSubnetIpBlocks
       - TrustSubnetIpBlocks
+      - NATGateway
       - NATGWSubnetIpBlocks
-      - ELBName
+      - LambdaSubnetIpBlocks
+      - NumberOfAZs
+      - VpcAzs
       - ELBType
     - Label:
         default: VM-Series firewall Instance configuration
@@ -168,13 +145,31 @@ Metadata:
       - PanFwAmiId
       - KeyName
       - SSHLocation
-      
+      - NumberOfFWs
     - Label:
         default: S3 Bucket details
       Parameters:
       - BootstrapS3Bucket
       - LambdaS3Bucket
+    - Label:
+        default: Cross-account configuration
+      Parameters:
+      - SubscriberAWSAccountNumber
     ParameterLabels:
+      VPCID:
+        default: 'VPC Id:'
+      VPCCIDR:
+        default: 'CIDR Block for the VPC:'
+      InternetGatewayID:
+        default: 'InternetGateway Id:'
+      MgmtSubnetIpBlocks:
+        default: 'Management Subnet CIDR Block:'
+      UntrustSubnetIpBlocks:
+        default: 'Untrust Subnet CIDR Block:'
+      TrustSubnetIpBlocks:
+        default: 'Trust Subnet CIDR Block:'
+      NATGWSubnetIpBlocks:
+        default: 'NAT Gateway Subnet CIDR Block:'
       PanFwAmiId:
         default: 'AMIId of PANFW Image:'
       KeyName:
@@ -186,7 +181,7 @@ Metadata:
       LambdaS3Bucket:
         default: 'S3 Bucket Name for Lambda Code:'
       ELBName:
-        default: 'Name of External Load Balancer:'
+        default: 'Name of External Application Load Balancer:'
       VpcAzs:
         default: 'Select  AZs:'
       AZSubnetIDUntrust:
@@ -194,26 +189,6 @@ Metadata:
       AZSubnetIDTrust:
         default: 'Subnet ID of Trust Interface:'
 Resources:
-  VPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock:
-        Ref: VPCCIDR
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- VpcCidrBlock
-        #- CidrBlock
-      EnableDnsHostnames: true
-      EnableDnsSupport: true
-      Tags:
-      - Key: Application
-        Value:
-          Ref: AWS::StackId
-      - Key: Network
-        Value: MGMT
-      - Key: Name
-        Value:
-          Ref: VPCName
   NATGWSubnetAz1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -223,15 +198,11 @@ Resources:
         - Ref: VpcAzs
       MapPublicIpOnLaunch: true
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '0'
         - Ref: NATGWSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- NatGwCidrBlock
-        #- CidrBlockAz1
       Tags:
       - Key: Application
         Value:
@@ -244,8 +215,6 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - NATGWSubnetAz1
-    DependsOn:
-    - VPC
   NATGWSubnetAz2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -255,15 +224,11 @@ Resources:
         - Ref: VpcAzs
       MapPublicIpOnLaunch: true
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '1'
         - Ref: NATGWSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- NatGwCidrBlock
-        #- CidrBlockAz2
       Tags:
       - Key: Application
         Value:
@@ -276,8 +241,6 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - NATGWSubnetAz2
-    DependsOn:
-    - VPC
   NATGWSubnetAz3:
     Type: AWS::EC2::Subnet
     Condition: CreateSubnet3
@@ -288,15 +251,11 @@ Resources:
         - Ref: VpcAzs
       MapPublicIpOnLaunch: true
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '2'
         - Ref: NATGWSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- NatGwCidrBlock
-        #- CidrBlockAz3
       Tags:
       - Key: Application
         Value:
@@ -309,33 +268,19 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - NATGWSubnetAz3
-    DependsOn:
-    - VPC
   EIP1:
     Type: AWS::EC2::EIP
     Properties:
-      Domain: VPC
-    DependsOn:
-    - VPC
-    - GatewayToInternet
-    - InternetGateway
+      Domain: VPCID
   EIP2:
     Type: AWS::EC2::EIP
     Properties:
-      Domain: VPC
-    DependsOn:
-    - VPC
-    - GatewayToInternet
-    - InternetGateway
+      Domain: VPCID
   EIP3:
     Type: AWS::EC2::EIP
     Condition: CreateSubnet3
     Properties:
-      Domain: VPC
-    DependsOn:
-    - VPC
-    - GatewayToInternet
-    - InternetGateway
+      Domain: VPCID
   NAT1:
     Type: AWS::EC2::NatGateway
     Properties:
@@ -346,10 +291,8 @@ Resources:
       SubnetId:
         Ref: NATGWSubnetAz1
     DependsOn:
-    - VPC
     - EIP1
     - NATGWSubnetAz1
-    - GatewayToInternet
   NAT2:
     Type: AWS::EC2::NatGateway
     Properties:
@@ -360,10 +303,8 @@ Resources:
       SubnetId:
         Ref: NATGWSubnetAz2
     DependsOn:
-    - VPC
     - EIP2
     - NATGWSubnetAz2
-    - GatewayToInternet
   NAT3:
     Type: AWS::EC2::NatGateway
     Condition: CreateSubnet3
@@ -375,10 +316,8 @@ Resources:
       SubnetId:
         Ref: NATGWSubnetAz3
     DependsOn:
-    - VPC
     - EIP3
     - NATGWSubnetAz3
-    - GatewayToInternet
   MGMTSubnetAz1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -388,15 +327,11 @@ Resources:
         - Ref: VpcAzs
       MapPublicIpOnLaunch: true
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '0'
         - Ref: MgmtSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- MgmtCidrBlock
-        #- CidrBlockAz1
       Tags:
       - Key: Application
         Value:
@@ -409,8 +344,6 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - MGMTSubnetAz1
-    DependsOn:
-    - VPC
   MGMTSubnetAz2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -420,15 +353,11 @@ Resources:
         - Ref: VpcAzs
       MapPublicIpOnLaunch: true
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '1'
         - Ref: MgmtSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- MgmtCidrBlock
-        #- CidrBlockAz2
       Tags:
       - Key: Application
         Value:
@@ -441,8 +370,6 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - MGMTSubnetAz2
-    DependsOn:
-    - VPC
   MGMTSubnetAz3:
     Type: AWS::EC2::Subnet
     Condition: CreateSubnet3
@@ -453,15 +380,11 @@ Resources:
         - Ref: VpcAzs
       MapPublicIpOnLaunch: true
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '2'
         - Ref: MgmtSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- MgmtCidrBlock
-        #- CidrBlockAz3
       Tags:
       - Key: Application
         Value:
@@ -474,37 +397,11 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - MGMTSubnetAz3
-    DependsOn:
-    - VPC
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-      - Key: Application
-        Value:
-          Ref: AWS::StackId
-      - Key: Network
-        Value: MGMT
-      - Key: Name
-        Value:
-          Fn::Join:
-          - "-"
-          - - Ref: AWS::StackName
-            - InternetGateway
-  GatewayToInternet:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId:
-        Ref: VPC
-      InternetGatewayId:
-        Ref: InternetGateway
-    DependsOn:
-    - InternetGateway
   NATGWRouteTableAz1:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Application
         Value:
@@ -515,13 +412,11 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - NATGWRouteTableAz1
-    DependsOn:
-    - VPC
   NATGWRouteTableAz2:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Application
         Value:
@@ -532,14 +427,12 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - NATGWRouteTableAz2
-    DependsOn:
-    - VPC
   NATGWRouteTableAz3:
     Type: AWS::EC2::RouteTable
     Condition: CreateSubnet3
     Properties:
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Application
         Value:
@@ -550,8 +443,6 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - NATGWRouteTableAz3
-    DependsOn:
-    - VPC
   NATGWRoute1:
     Type: AWS::EC2::Route
     Properties:
@@ -559,10 +450,9 @@ Resources:
         Ref: NATGWRouteTableAz1
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId:
-        Ref: InternetGateway
+        Ref: InternetGatewayID
     DependsOn:
     - NATGWRouteTableAz1
-    - GatewayToInternet
   NATGWRoute2:
     Type: AWS::EC2::Route
     Properties:
@@ -570,10 +460,9 @@ Resources:
         Ref: NATGWRouteTableAz2
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId:
-        Ref: InternetGateway
+        Ref: InternetGatewayID
     DependsOn:
     - NATGWRouteTableAz2
-    - GatewayToInternet
   NATGWRoute3:
     Type: AWS::EC2::Route
     Condition: CreateSubnet3
@@ -582,15 +471,14 @@ Resources:
         Ref: NATGWRouteTableAz3
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId:
-        Ref: InternetGateway
+        Ref: InternetGatewayID
     DependsOn:
     - NATGWRouteTableAz3
-    - GatewayToInternet
   MGMTRouteTableAz1:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Application
         Value:
@@ -601,13 +489,11 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - MGMTRouteTableAz1
-    DependsOn:
-    - VPC
   MGMTRouteTableAz2:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Application
         Value:
@@ -618,14 +504,12 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - MGMTRouteTableAz2
-    DependsOn:
-    - VPC
   MGMTRouteTableAz3:
     Type: AWS::EC2::RouteTable
     Condition: CreateSubnet3
     Properties:
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Application
         Value:
@@ -636,8 +520,6 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - MGMTRouteTableAz3
-    DependsOn:
-    - VPC
   MGMTRouteNAT1:
     Type: AWS::EC2::Route
     Properties:
@@ -737,15 +619,11 @@ Resources:
         - '0'
         - Ref: VpcAzs
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '0'
         - Ref: UntrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- UntrustCidrBlock
-        #- CidrBlockAz1
       Tags:
       - Key: Application
         Value:
@@ -758,8 +636,6 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - UNTRUSTSubnet1
-    DependsOn:
-    - VPC
   UNTRUSTSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -768,15 +644,11 @@ Resources:
         - '1'
         - Ref: VpcAzs
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '1'
         - Ref: UntrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- UntrustCidrBlock
-        #- CidrBlockAz2
       Tags:
       - Key: Application
         Value:
@@ -789,8 +661,6 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - UNTRUSTSubnet2
-    DependsOn:
-    - VPC
   UNTRUSTSubnet3:
     Type: AWS::EC2::Subnet
     Condition: CreateSubnet3
@@ -800,15 +670,11 @@ Resources:
         - '2'
         - Ref: VpcAzs
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '2'
         - Ref: UntrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- UntrustCidrBlock
-        #- CidrBlockAz3
       Tags:
       - Key: Application
         Value:
@@ -821,13 +687,11 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - UNTRUSTSubnet3
-    DependsOn:
-    - VPC
   UNTRUSTRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Application
         Value:
@@ -847,9 +711,8 @@ Resources:
         Ref: UNTRUSTRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId:
-        Ref: InternetGateway
+        Ref: InternetGatewayID
     DependsOn:
-    - GatewayToInternet
     - UNTRUSTRouteTable
   UNTRUSTSubnetRouteTableAssociation1:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -890,15 +753,11 @@ Resources:
         - '0'
         - Ref: VpcAzs
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '0'
         - Ref: TrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- TrustCidrBlock
-        #- CidrBlockAz1
       Tags:
       - Key: Application
         Value:
@@ -911,9 +770,6 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - TRUSTSubnet1
-    DependsOn:
-    - VPC
-    - InternetGateway
   TRUSTSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
@@ -922,15 +778,11 @@ Resources:
         - '1'
         - Ref: VpcAzs
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '1'
         - Ref: TrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- TrustCidrBlock
-        #- CidrBlockAz2
       Tags:
       - Key: Application
         Value:
@@ -943,9 +795,6 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - TRUSTSubnet2
-    DependsOn:
-    - VPC
-    - InternetGateway
   TRUSTSubnet3:
     Type: AWS::EC2::Subnet
     Condition: CreateSubnet3
@@ -955,15 +804,11 @@ Resources:
         - '2'
         - Ref: VpcAzs
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       CidrBlock:
         Fn::Select:
         - '2'
         - Ref: TrustSubnetIpBlocks
-        #Fn::FindInMap:
-        #- CidrBlockMap
-        #- TrustCidrBlock
-        #- CidrBlockAz3
       Tags:
       - Key: Application
         Value:
@@ -976,14 +821,11 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - TRUSTSubnet3
-    DependsOn:
-    - VPC
-    - InternetGateway
   TrustRouteTableAz1:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Application
         Value:
@@ -996,13 +838,11 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - TrustRouteTableAz1
-    DependsOn:
-    - VPC
   TrustRouteTableAz2:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Application
         Value:
@@ -1015,14 +855,12 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - TrustRouteTableAz2
-    DependsOn:
-    - VPC
   TrustRouteTableAz3:
     Type: AWS::EC2::RouteTable
     Condition: CreateSubnet3
     Properties:
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Application
         Value:
@@ -1035,39 +873,37 @@ Resources:
           - "-"
           - - Ref: AWS::StackName
             - TrustRouteTableAz3
+  TrustRouteNAT1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: TrustRouteTableAz1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NAT1
     DependsOn:
-    - VPC
-  #TrustRouteNAT1:
-  #  Type: AWS::EC2::Route
-  #  Properties:
-  #    RouteTableId:
-  #      Ref: TrustRouteTableAz1
-  #    DestinationCidrBlock: 0.0.0.0/0
-  #    NatGatewayId:
-  #      Ref: NAT1
-  #  DependsOn:
-  #  - NAT1
-  #TrustRouteNAT2:
-  #  Type: AWS::EC2::Route
-  #  Properties:
-  #    RouteTableId:
-  #      Ref: TrustRouteTableAz2
-  #    DestinationCidrBlock: 0.0.0.0/0
-  #    NatGatewayId:
-  #      Ref: NAT2
-  #  DependsOn:
-  #  - NAT2
-  #TrustRouteNAT3:
-  #  Type: AWS::EC2::Route
-  #  Condition: CreateSubnet3
-  #  Properties:
-  #    RouteTableId:
-  #      Ref: TrustRouteTableAz3
-  #    DestinationCidrBlock: 0.0.0.0/0
-  #    NatGatewayId:
-  #      Ref: NAT3
-  #  DependsOn:
-  #  - NAT3
+    - NAT1
+  TrustRouteNAT2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: TrustRouteTableAz2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NAT2
+    DependsOn:
+    - NAT2
+  TrustRouteNAT3:
+    Type: AWS::EC2::Route
+    Condition: CreateSubnet3
+    Properties:
+      RouteTableId:
+        Ref: TrustRouteTableAz3
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NAT3
+    DependsOn:
+    - NAT3
   TRUSTSubnetRouteTableAssociation1:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -1102,7 +938,7 @@ Resources:
       GroupDescription: Public ALB Security Group with HTTP access on port 80 from
         the internet
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Name
         Value:
@@ -1117,11 +953,9 @@ Resources:
         CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
       - IpProtocol: tcp
-        FromPort: '1'
-        ToPort: '65500'
+        FromPort: '80'
+        ToPort: '2000'
         CidrIp: 0.0.0.0/0
-    DependsOn:
-    - VPC
   PublicLoadBanlancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -1179,8 +1013,6 @@ Resources:
                 - Ref: UNTRUSTSubnet3
       Scheme: internet-facing
     DependsOn:
-    - VPC
-    - GatewayToInternet
     - PublicLoadBalancerSecurityGroup
     - UNTRUSTSubnet1
     - UNTRUSTSubnet2
@@ -1198,7 +1030,7 @@ Resources:
       Port: 81
       Protocol: HTTP
       VpcId:
-        Ref: VPC
+        Ref: VPCID
   NetworkLoadBalancerTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Condition: CreateELBTypeNet
@@ -1207,9 +1039,10 @@ Resources:
       Protocol: TCP
       UnhealthyThresholdCount: '3'
       VpcId:
-        Ref: VPC
+        Ref: VPCID
   S3Endpoint:
     Type: AWS::EC2::VPCEndpoint
+    Condition: CreateSubnet2
     Properties:
       PolicyDocument:
         Version: '2012-10-17'
@@ -1231,13 +1064,6 @@ Resources:
             - - 'arn:aws:s3:::'
               - Ref: BootstrapS3Bucket
               - "/*"
-        - Effect: Allow
-          Principal: "*"
-          Action:
-          - s3:GetObject
-          - s3:PutObject
-          Resource:
-            Fn::Sub: arn:aws:s3:::prod-${AWS::Region}-starport-layer-bucket/*
       RouteTableIds:
       - Ref: UNTRUSTRouteTable
       ServiceName:
@@ -1247,7 +1073,41 @@ Resources:
           - Ref: AWS::Region
           - ".s3"
       VpcId:
-        Ref: VPC
+        Ref: VPCID
+  S3Endpoint3:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: CreateSubnet3
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal: "*"
+          Action: s3:ListBucket
+          Resource:
+            Fn::Join:
+            - ''
+            - - 'arn:aws:s3:::'
+              - Ref: BootstrapS3Bucket
+        - Effect: Allow
+          Principal: "*"
+          Action: s3:GetObject
+          Resource:
+            Fn::Join:
+            - ''
+            - - 'arn:aws:s3:::'
+              - Ref: BootstrapS3Bucket
+              - "/*"
+      RouteTableIds:
+      - Ref: UNTRUSTRouteTable
+      ServiceName:
+        Fn::Join:
+        - ''
+        - - com.amazonaws.
+          - Ref: AWS::Region
+          - ".s3"
+      VpcId:
+        Ref: VPCID
   FirewallBootstrapRole:
     Type: AWS::IAM::Role
     Properties:
@@ -1297,7 +1157,7 @@ Resources:
     Properties:
       GroupDescription: Enable SSH to MGMT interface
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Name
         Value:
@@ -1320,18 +1180,12 @@ Resources:
         FromPort: "-1"
         ToPort: "-1"
         CidrIp:
-          Fn::FindInMap:
-          - CidrBlockMap
-          - VpcCidrBlock
-          - CidrBlock
+          Ref: VPCCIDR
       - IpProtocol: tcp
         FromPort: '22'
         ToPort: '22'
         CidrIp:
-          Fn::FindInMap:
-          - CidrBlockMap
-          - VpcCidrBlock
-          - CidrBlock
+          Ref: VPCCIDR
       SecurityGroupEgress:
       - IpProtocol: "-1"
         FromPort: "-1"
@@ -1342,7 +1196,7 @@ Resources:
     Properties:
       GroupDescription: Security Group for Untrust interface
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Name
         Value:
@@ -1365,7 +1219,7 @@ Resources:
     Properties:
       GroupDescription: Security Group for trust interface
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Name
         Value:
@@ -1388,7 +1242,7 @@ Resources:
     Properties:
       GroupDescription: Security Group for within VPC
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       Tags:
       - Key: Name
         Value:
@@ -1466,7 +1320,6 @@ Resources:
             - ec2:AllocateAddress
             - ec2:AssociateAddress
             - ec2:AssociateRouteTable
-            - ec2:AttachInternetGateway
             - ec2:AttachNetworkInterface
             - ec2:CreateNetworkInterface
             - ec2:CreateTags
@@ -1493,7 +1346,6 @@ Resources:
             - ec2:DescribeVpcs
             - ec2:DescribeSubnets
             - ec2:DescribeSecurityGroups
-            - ec2:DetachInternetGateway
             - ec2:DetachNetworkInterface
             - ec2:DetachVolume
             - ec2:DisassociateAddress
@@ -1706,7 +1558,7 @@ Resources:
       Region:
         Ref: AWS::Region
       VpcId:
-        Ref: VPC
+        Ref: VPCID
       SubnetIDMgmt:
         Fn::If:
         - CreateSubnet2
@@ -1928,5 +1780,5 @@ Outputs:
     Description: File name of the Lambda Code being run
   InternetGatewayID:
     Value:
-      Ref: InternetGateway
+      Ref: InternetGatewayID
     Description: Internet Gateway ID

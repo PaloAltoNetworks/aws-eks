@@ -10,18 +10,13 @@ Parameters:
     MaxLength: 64
     Default: panwCluster
 
-  KubernetesVersion:
-    Type: String
-    Description: "Version of Kubernetes for EKS Cluster."
-    Default : "1.13"
-
   VPCID:
     Type: AWS::EC2::VPC::Id
     Description: VPC ID to deployed cluster into.
 
   InternetGatewayID:
     Type: String
-    Description: "InternetGateway ID of VPC."
+    Description: "(NO OUTBOUND PROTECTION) InternetGateway ID of VPC."
     Default : ""
 
   NumberOfSubnets:
@@ -49,7 +44,6 @@ Metadata:
           default: "Cluster Configuration"
         Parameters: 
           - ClusterName
-          - KubernetesVersion
           - VPCID
           - NumberOfSubnets
           - ClusterSubnetAZs
@@ -58,8 +52,6 @@ Metadata:
     ParameterLabels: 
       ClusterName:
         default: "Cluster Name"
-      KubernetesVersion:
-        default: "Kubernetes Version"
       VPCID: 
         default: "VPC ID"
       NumberOfSubnets: 
@@ -275,7 +267,7 @@ Resources:
     Condition: CreateSubnet2
     Properties:
       Name: !Ref ClusterName
-      Version: !Ref KubernetesVersion
+      Version: "1.11"
       RoleArn: !GetAtt ClusterRole.Arn
       ResourcesVpcConfig:
         SecurityGroupIds:
@@ -289,7 +281,7 @@ Resources:
     Condition: CreateSubnet3
     Properties:
       Name: !Ref ClusterName
-      Version: !Ref KubernetesVersion
+      Version: "1.11"
       RoleArn: !GetAtt ClusterRole.Arn
       ResourcesVpcConfig:
         SecurityGroupIds:
@@ -304,7 +296,7 @@ Resources:
     Condition: CreateSubnet4
     Properties:
       Name: !Ref ClusterName
-      Version: !Ref KubernetesVersion
+      Version: "1.11"
       RoleArn: !GetAtt ClusterRole.Arn
       ResourcesVpcConfig:
         SecurityGroupIds:
